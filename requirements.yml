@@ -1,0 +1,5 @@
+---
+collections:
+  - name: infra.app_configuration
+  - name: ansible.controller
+  - name: aws.awx
