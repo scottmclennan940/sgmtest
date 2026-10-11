@@ -18,7 +18,7 @@
     - name: Create the inventory
       ansible.controller.inventory:
         name: inventory_payment_a
-        organization: "Patch Platform"
+        organization: "Default"
         state: present
 
     - name: Add hosts to the inventory
