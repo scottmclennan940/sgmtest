@@ -1,0 +1,3 @@
+timezone: Asia/Tokyo
+patch_window: sunday_0200
+reboot_policy:controlled
