@@ -1,0 +1,6 @@
+team: payent_a_ops
+roles: 
+  - resource: inventory_payment_a
+    permissions: [read, use]
+  - resource: wfjt_rhel_patch
+    permissions: [execute]
