@@ -1,0 +1,4 @@
+os_family: rhel
+patch_method: satellite
+service_name: payment-api
+install_root: /opt/payment
