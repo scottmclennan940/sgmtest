@@ -1,0 +1,14 @@
+---
+- name: Find outbound IP
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tasks:
+    - name: Get public IP
+      ansible.builtin.uri:
+        url: https://ifconfig.me/ip
+        return_content: true
+      register: myip
+    - name: Show the IP
+      ansible.builtin.debug:
+        msg: "Outbound IP is {{ myip.content }}"
