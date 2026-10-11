@@ -5,9 +5,9 @@
   gather_facts: false
 
   vars:
-    aap_hostname: "{{ lookup('env', 'CONTROLLER_HOST') }}"
-    aap_username: "{{ lookup('env', 'CONTROLLER_USERNAME') }}"
-    aap_password: "{{ lookup('env', 'CONTROLLER_PASSWORD') }}"
+    aap_hostname: "{{ lookup('env', 'https://sandbox-aap-i20260914-dev.apps.rm3.7wse.p1.openshiftapps.com/') }}"
+    aap_username: "{{ lookup('env', 'admin') }}"
+    aap_password: "{{ lookup('env', '5VYWhlSxEJKrN2UhJC5IJ6Tnh1SjVQ9t') }}"
     aap_validate_certs: false
 
   tasks:
