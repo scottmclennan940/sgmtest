@@ -1,0 +1,209 @@
+- name: "05 RHELマイナーアップデート事後検証（Postcheck）一括実行"
+  hosts: "{{ target_server }}"
+  become: true
+  gather_facts: true
+
+  #------------------------------------------------
+  # 変数定義
+  #------------------------------------------------
+  vars:
+    report_dir: "/var/log/rhel_minor_update_poc"
+    services_must_be_running:
+      - sshd.service
+      - crond.service
+      - chronyd.service
+    services_must_be_stopped:
+      - sssd.service
+      - sssd-kcm.service
+    check_target_port: 22
+
+  #------------------------------------------------
+  # タスク
+  #------------------------------------------------
+  tasks:
+    - name: "05-00-00. 事後検証処理ブロック"
+      block:
+        # ==============================================================
+        # 【フェーズ1】 確認（情報収集）フェーズ
+        # ==============================================================
+        - name: "05-01-01. 証跡用ディレクトリを作成（存在確認）"
+          ansible.builtin.file:
+            path: "{{ report_dir }}"
+            state: directory
+            owner: root
+            group: root
+            mode: "0755"
+
+        - name: "05-02-01. OS,カーネル情報の取得"
+          ansible.builtin.set_fact:
+            os_kernel_info: |
+              Kernel Name      : {{ ansible_facts['system'] }}
+              Node Name (Host) : {{ ansible_facts['nodename'] }}
+              Kernel Release   : {{ ansible_facts['kernel'] }}
+              Kernel Version   : {{ ansible_facts['kernel_version'] }}
+              Architecture     : {{ ansible_facts['userspace_architecture'] }}
+              OS Name          : {{ ansible_facts['os_family'] }}
+              Distribution     : {{ ansible_facts['distribution'] }}
+
+        - name: "05-03-01. 有効なリポジトリ一覧を取得 (RHUI接続確認)"
+          ansible.builtin.command: dnf repolist --enabled
+          register: enabled_repos
+          changed_when: false
+          failed_when: false
+          when: ansible_os_family == "RedHat"
+
+        - name: "05-04-01. 現在のディスク使用量を取得"
+          ansible.builtin.set_fact:
+            disk_usage_info: >-
+              [
+              {% for item in ansible_mounts %}
+                "{{ item.mount }} ({{ item.device }}) : 使用量 {{ ((item.size_total - item.size_available) / 1024 / 1024 / 1024) | round(2) }} GB / 全体 {{ (item.size_total / 1024 / 1024 / 1024) | round(2) }} GB"{% if not loop.last %},{% endif %}
+              {% endfor %}
+              ]
+
+        - name: "05-05-01. ターゲットノードの現在のサービス情報を一括取得する"
+          ansible.builtin.service_facts:
+
+        - name: "05-05-02. 作業後のサービス情報(JSON)をファイルに保存する"
+          ansible.builtin.copy:
+            content: "{{ ansible_facts.services | to_nice_json }}"
+            dest: "{{ report_dir }}/services_after_{{ ansible_hostname }}_{{ ansible_date_time.date | replace('-', '') }}.json"
+            mode: "0644"
+
+        - name: "05-05-03. 事前サービス情報ファイルの存在確認"
+          ansible.builtin.stat:
+            path: "{{ report_dir }}/services_before_{{ ansible_hostname }}_{{ ansible_date_time.date | replace('-', '') }}.json"
+          register: services_before_stat
+
+        - name: "05-05-04. 作業前後でのサービス状態の差分(Diff)を確認する"
+          ansible.builtin.command: >
+            diff -u {{ report_dir }}/services_before_{{ ansible_hostname }}_{{ ansible_date_time.date | replace('-', '') }}.json
+            {{ report_dir }}/services_after_{{ ansible_hostname }}_{{ ansible_date_time.date | replace('-', '') }}.json
+          register: diff_services_result
+          failed_when: false
+          changed_when: false
+          when: services_before_stat.stat.exists
+
+        - name: "05-06-01. アップデート後のパッケージ情報を取得 (package_facts)"
+          ansible.builtin.package_facts:
+            manager: auto
+          register: pkg_facts_result
+
+        - name: "05-07-01. 対象ポートが開いているか確認 (wait_for)"
+          ansible.builtin.wait_for:
+            port: "{{ check_target_port }}"
+            state: started
+            timeout: 5
+          register: wait_for_result
+          failed_when: false
+
+        - name: "05-07-02. TCP待受ポート一覧を取得 (ssコマンド)"
+          ansible.builtin.command: ss -tln
+          register: ss_result
+          changed_when: false
+          failed_when: false
+
+        - name: "05-08-01. 再起動の必要性を確認 (needs-restarting -r)"
+          ansible.builtin.command: needs-restarting -r
+          register: reboot_required
+          failed_when: false
+          changed_when: false
+
+        # ==============================================================
+        # 【フェーズ2】 出力（ログ出力）フェーズ
+        # ==============================================================
+        - name: "05-09-01. 事後検証結果レポートを出力します。"
+          ansible.builtin.copy:
+            dest: "{{ report_dir }}/05_rhel_postcheck_{{ ansible_hostname }}_{{ (ansible_date_time.date | replace('-', ''))[2:] }}_{{ ansible_date_time.time | replace(':', '') }}.txt"
+            mode: "0644"
+            content: |
+              === 05-02-01. OS,カーネル情報（アップデート後） ===
+              {{ os_kernel_info }}
+
+              === 05-03-01. RHUIリポジトリの疎通・状態確認 ===
+              {{ enabled_repos.stdout | default('Skipped / N/A') }}
+
+              === 05-04-01. 現在のディスク使用量を表示 ===
+              {{ disk_usage_info }}
+
+              === 05-05-01. 稼働中のサービス一覧 ===
+              {% for svc_name, svc_info in ansible_facts.services.items() if svc_info.state == 'running' %}
+              {{ svc_name }}
+              {% else %}
+              N/A
+              {% endfor %}
+
+              === 05-05-02. 稼働必須サービスの状況 ===
+              {% for svc in services_must_be_running %}
+              サービス: {{ svc }} -> 状態: {{ ansible_facts.services[svc].state if (svc in ansible_facts.services) else 'NotFound' }}
+              {% endfor %}
+
+              === 05-05-03. 停止必須サービスの状況 ===
+              {% for svc in services_must_be_stopped %}
+              サービス: {{ svc }} -> 状態: {{ ansible_facts.services[svc].state if (svc in ansible_facts.services) else 'NotFound' }}
+              {% endfor %}
+
+              === 05-05-04. 作業前後のサービス状態差分(Diff) ===
+              {% if not services_before_stat.stat.exists %}
+              事前データが存在しないため、差分比較をスキップしました。
+              {% else %}
+              {{ diff_services_result.stdout if (diff_services_result.stdout | default('') | length > 0) else 'サービス状態の差分はありませんでした。' }}
+              {% endif %}
+
+              === 05-06-01. パッケージ情報を取得 (package_facts) ===
+              取得済 (詳細略。必要に応じてJSON参照)
+
+              === 05-07-01. ポート {{ check_target_port }} 状態 (wait_for) ===
+              Port {{ check_target_port }} Status: {{ 'OPEN' if not wait_for_result.failed else 'CLOSED/TIMEOUT' }}
+
+              === 05-07-02. TCP待受ポート一覧 (ss -tln) ===
+              {{ ss_result.stdout | default('N/A') }}
+
+              === 05-08-01. システム再起動要求の有無 ===
+              {{ '【警告】システム再起動が完了しておらず、再起動が必要です。' if reboot_required.rc == 1 else '【正常】再起動要求はありません（アップデート後の再起動が正常に完了しています）。' }}
+
+        # ==============================================================
+        # 【フェーズ3】 判定(Assert)フェーズ
+        # ==============================================================
+        - name: "05-10-01. 【判定】有効リポジトリにRHUI関連が含まれているか検証"
+          ansible.builtin.assert:
+            that:
+              - "'rhui' in (enabled_repos.stdout | default('') | lower) or 'redhat-rhui' in (enabled_repos.stdout | default('') | lower)"
+            fail_msg: "【NG】RHUI repository does not seem to be enabled. Check AWS RHEL RHUI configuration."
+            success_msg: "【OK】RHUI repository seems to be enabled."
+          when: ansible_os_family == "RedHat"
+
+        - name: "05-10-02. 【判定】稼働すべきサービスが実際に「running」かチェック"
+          ansible.builtin.assert:
+            that:
+              - ansible_facts.services[item] is defined
+              - ansible_facts.services[item]['state'] == 'running'
+            fail_msg: "エラー: {{ item }} は稼働している必要がありますが、現在の状態は {{ ansible_facts.services[item]['state'] if (item in ansible_facts.services and 'state' in ansible_facts.services[item]) else '存在しません' }} です。"
+          loop: "{{ services_must_be_running }}"
+
+        - name: "05-10-03. 【判定】停止すべきサービスが実際に「stopped」かチェック"
+          ansible.builtin.assert:
+            that:
+              - ansible_facts.services[item] is defined
+              - ansible_facts.services[item]['state'] == 'stopped'
+            fail_msg: "エラー: {{ item }} は停止している必要がありますが、現在の状態は {{ ansible_facts.services[item]['state'] if (item in ansible_facts.services and 'state' in ansible_facts.services[item]) else '存在しません' }} です。"
+          loop: "{{ services_must_be_stopped }}"
+
+        - name: "05-10-04. 【判定】対象ポートが待受状態(OPEN)であるかチェック"
+          ansible.builtin.assert:
+            that:
+              - not wait_for_result.failed
+            fail_msg: "【エラー】対象ポート ({{ check_target_port }}) が待受状態になっていません。サービスの起動状態やネットワーク設定を確認してください。"
+            success_msg: "【OK】対象ポート ({{ check_target_port }}) が正常に待受状態(OPEN)であることを確認しました。"
+
+      rescue:
+        - name: "05-99-01. エラー発生時の処理失敗通知"
+          ansible.builtin.fail:
+            msg: "事後検証タスクの実行中に予期せぬエラーが発生しました。詳細は証跡ファイルまたはAAPジョブログを確認してください。"
+
+      when: allow_os_exec | default(false) | bool
+
+    - name: "05-99-02. 実行スキップ時のメッセージ"
+      ansible.builtin.debug:
+        msg: "Survey変数 allow_os_exec が true ではないため、rhel_postcheckはスキップされました。"
+      when: not (allow_os_exec | default(false) | bool)

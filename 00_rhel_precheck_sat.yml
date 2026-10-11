@@ -1,0 +1,305 @@
+- name: "00 RHELマイナーアップデート事前検証（Precheck）一括実行"
+  hosts: "{{ target_server }}"
+  become: true
+  gather_facts: true
+
+  #------------------------------------------------
+  # 変数定義
+  #------------------------------------------------
+  vars:
+    # 検証レポートの出力先ディレクトリパス
+    report_dir: "/var/log/rhel_minor_update_poc"
+
+    # 上がっていてほしい（稼働すべき）サービスリスト
+    services_must_be_running:
+      - sshd.service
+      - crond.service
+      - chronyd.service
+
+    # 止まっていてほしい（停止すべき）サービスリスト
+    services_must_be_stopped:
+      - sssd.service
+      - sssd-kcm.service
+
+    # パッチ適用に最低限必要とするディスク空き容量（GB）
+    required_free_gb: 2.0
+    # パッケージ適用に最低限必要とするメモリ+Swapの合計空き容量（MB）
+    required_free_memory_mb: 128
+    # 適用ターゲットとするRHELのマイナーバージョンを指定
+    target_rhel_version: "9.8"
+    
+    # [追加] 監視・確認対象のポート番号
+    check_target_port: 22
+
+  #------------------------------------------------
+  # タスク
+  #------------------------------------------------
+  tasks:
+
+    # ==============================================================
+    # 【フェーズ1】 情報収集フェーズ
+    # （ここでは判定やエラー終了を行わず、状態の取得と変数化に専念する）
+    # ==============================================================
+    - name: "00-01-01. 証跡用ディレクトリを作成"
+      ansible.builtin.file:
+        path: "{{ report_dir }}"
+        state: directory
+        owner: root
+        group: root
+        mode: "0755"
+
+    - name: "00-02-01. OS,カーネル情報の取得"
+      ansible.builtin.set_fact:
+        os_kernel_info: |
+          Kernel Name      : {{ ansible_facts['system'] }}
+          Node Name (Host) : {{ ansible_facts['nodename'] }}
+          Kernel Release   : {{ ansible_facts['kernel'] }}
+          Kernel Version   : {{ ansible_facts['kernel_version'] }}
+          Architecture     : {{ ansible_facts['userspace_architecture'] }}
+          OS Name          : {{ ansible_facts['os_family'] }}
+          Distribution     : {{ ansible_facts['distribution'] }}
+
+    - name: "00-03-01. system_vendorの情報を取得(AWS環境確認)"
+      ansible.builtin.set_fact:
+        is_aws: true
+      when:
+        - ansible_facts['system_vendor'] is defined
+        - "'Amazon' in ansible_facts['system_vendor'] or 'EC2' in ansible_facts['system_vendor']"
+
+    - name: "00-03-02. AWS上のホストか確認"
+      ansible.builtin.set_fact:
+        aws_host_info: |
+          Status: {{ 'This host is on AWS EC2.' if (is_aws | default(false)) else 'This host is NOT on AWS.' }}
+          System Vendor: {{ ansible_facts['system_vendor'] | default('Not Defined') }}
+
+    #- name: "00-04-01. 有効なリポジトリ一覧を取得(RHUI接続確認)"
+    - name: "00-04-01. 有効なリポジトリ一覧を取得(Satellite接続確認)"
+      ansible.builtin.command: dnf repolist --enabled
+      register: enabled_repos
+      changed_when: false
+      failed_when: false
+      when: ansible_os_family == "RedHat"
+
+    - name: "00-05-01. 現在のディスク使用量を取得"
+      ansible.builtin.set_fact:
+        disk_usage_info: >-
+          [
+          {% for item in ansible_mounts %}
+            "{{ item.mount }} ({{ item.device }}) : 使用量 {{ ((item.size_total - item.size_available) / 1024 / 1024 / 1024) | round(2) }} GB / 全体 {{ (item.size_total / 1024 / 1024 / 1024) | round(2) }} GB"{% if not loop.last %},{% endif %}
+          {% endfor %}
+          ]
+
+    - name: "00-06-01. ターゲットノードのサービス情報を一括取得"
+      ansible.builtin.service_facts:
+
+    - name: "00-07-01. パッケージ情報を取得 (package_facts)"
+      ansible.builtin.package_facts:
+        manager: auto
+      register: pkg_facts_result
+
+    - name: "00-07-02. dnf.conf取得"
+      ansible.builtin.slurp:
+        src: /etc/dnf/dnf.conf
+      register: dnf_conf_slurp
+      failed_when: false
+
+    - name: "00-07-03. yum.conf取得"
+      ansible.builtin.slurp:
+        src: /etc/yum.conf
+      register: yum_conf_slurp
+      failed_when: false
+
+    - name: "00-08-01. DNFバージョン固定設定 (/etc/yum/vars/releasever) の存在確認"
+      ansible.builtin.stat:
+        path: /etc/yum/vars/releasever
+      register: releasever_stat
+
+    - name: "00-08-02. DNFバージョン固定設定の内容確認"
+      ansible.builtin.slurp:
+        src: /etc/yum/vars/releasever
+      register: releasever_slurp
+      failed_when: false
+      when: releasever_stat.stat.exists
+
+    - name: "00-09-01. 再起動の必要性を確認 (needs-restarting -r)"
+      ansible.builtin.command: needs-restarting -r
+      register: reboot_required
+      failed_when: false
+      changed_when: false
+
+    - name: "00-10-01. 対象ポートが開いているか確認 (wait_for)"
+      ansible.builtin.wait_for:
+        port: "{{ check_target_port }}"
+        state: started
+        timeout: 5
+      register: wait_for_result
+      failed_when: false
+
+    - name: "00-10-02. TCP待受ポート一覧を取得 (ssコマンド)"
+      ansible.builtin.command: ss -tln
+      register: ss_result
+      changed_when: false
+      failed_when: false
+
+    # ==============================================================
+    # 【フェーズ2】 ログファイル出力フェーズ
+    # （収集した情報をすべて証跡ファイルに書き出す）
+    # ==============================================================
+    - name: "00-11-01. 作業前のサービス情報をJSONファイルとして保存"
+      ansible.builtin.copy:
+        content: "{{ ansible_facts.services | to_nice_json }}"
+        dest: "{{ report_dir }}/services_before_{{ ansible_hostname }}_{{ ansible_date_time.date | replace('-', '') }}.json"
+        mode: '0644'
+
+    - name: "00-11-02. 事前検証結果レポートを出力"
+      ansible.builtin.copy:
+        dest: "{{ report_dir }}/00_rhel_precheck_{{ ansible_hostname }}_{{ (ansible_date_time.date | replace('-', ''))[2:] }}_{{ ansible_date_time.time | replace(':', '') }}.txt"
+        mode: "0644"
+        content: |
+          === 00-02-01. OS,カーネル情報 ===
+          {{ os_kernel_info }}
+
+          === 00-03-02. AWS上のホストか確認 ===
+          {{ aws_host_info }}
+
+          === 00-04-01. RHUIリポジトリの疎通・キャッシュ更新確認 ===
+          {{ enabled_repos.stdout | default('Skipped / N/A') }}
+
+          === 00-05-01. 現在のディスク使用量 ===
+          {{ disk_usage_info }}
+
+          === 00-06-01. 稼働中のサービス一覧 ===
+          {% for svc_name, svc_info in ansible_facts.services.items() if svc_info.state == 'running' %}
+          {{ svc_name }}
+          {% else %}
+          N/A
+          {% endfor %}
+
+          === 00-06-01(2). 必須サービスの状況 ===
+          [稼働必須]
+          {% for svc in services_must_be_running %}
+          {{ svc }} -> {{ ansible_facts.services[svc]['state'] | default('NotFound') }}
+          {% endfor %}
+          [停止必須]
+          {% for svc in services_must_be_stopped %}
+          {{ svc }} -> {{ ansible_facts.services[svc]['state'] | default('NotFound') }}
+          {% endfor %}
+
+          === 00-07-02/03. パッケージ除外設定 ===
+          [dnf.conf]
+          {{ (dnf_conf_slurp.content | b64decode) if dnf_conf_slurp.content is defined else 'N/A' }}
+          [yum.conf]
+          {{ (yum_conf_slurp.content | b64decode) if yum_conf_slurp.content is defined else 'N/A' }}
+
+          === 00-08-02. DNFバージョン固定設定 (/etc/yum/vars/releasever) ===
+          {% if releasever_stat.stat.exists %}
+          設定値: {{ (releasever_slurp.content | b64decode) if releasever_slurp.content is defined else '取得失敗' }}
+          {% else %}
+          ファイルが存在しません。
+          {% endif %}
+
+          === 00-09-01. システム再起動要求の有無 ===
+          {{ '【警告】すでにシステム再起動が必要です。' if reboot_required.rc == 1 else '再起動要求はありません（正常）。' }}
+
+          === 00-10-01. ポート {{ check_target_port }} 状態 (wait_for) ===
+          Port {{ check_target_port }} Status: {{ 'OPEN' if not wait_for_result.failed else 'CLOSED/TIMEOUT' }}
+
+          === 00-10-02. TCP待受ポート一覧 (ss -tln) ===
+          {{ ss_result.stdout | default('N/A') }}
+
+    # ==============================================================
+    # 【フェーズ3】 判定(Assert)フェーズ
+    # （要件を満たしていない場合、ここでPlaybookをエラー終了させる）
+    # ==============================================================
+    - name: "00-12-01. 【判定】対象OSがRHELであることを確認"
+      ansible.builtin.assert:
+        that:
+          - ansible_facts['distribution'] == "RedHat"
+        fail_msg: "【エラー】対象ホストのOSがRHELではありません。 (現在のOS: {{ ansible_facts['distribution'] | default('不明') }})"
+        success_msg: "【OK】対象ホストのOSがRHELであることを確認しました。"
+
+    - name: "00-12-02. 【判定】メモリとSwapの合計空き容量が規定値を満たしているか確認"
+      ansible.builtin.assert:
+        that:
+          - (ansible_facts['memfree_mb'] + (ansible_facts['swapfree_mb'] | default(0))) >= required_free_memory_mb
+        fail_msg: >-
+          【エラー】メモリとSwapの合計空き容量が不足しています。
+          (必要: {{ required_free_memory_mb }}MB,
+          現在の合計空き: {{ ansible_facts['memfree_mb'] + (ansible_facts['swapfree_mb'] | default(0)) }}MB)
+        success_msg: "【OK】メモリとSwapの合計空き容量は要件を満たしています。"
+
+
+    - name: "00-12-02A. Satellite設定取得"
+      ansible.builtin.command: subscription-manager config
+      register: satellite_config
+      changed_when: false
+      failed_when: false
+
+
+    #- name: "00-12-03. 【判定】有効リポジトリにRHUI関連が含まれているか検証"
+    #  ansible.builtin.assert:
+    #    that:
+    #      - "'rhui' in (enabled_repos.stdout | default('') | lower) or 'redhat-rhui' in (enabled_repos.stdout | default('') | lower)"
+    #    fail_msg: "【NG】RHUI repository does not seem to be enabled. Check AWS RHEL RHUI configuration."
+    #    success_msg: "【OK】RHUI repository seems to be enabled."
+    #  when:
+    #    - ansible_os_family == "RedHat"
+    #    - is_aws | default(false)
+
+    - name: "00-12-03. 【判定】Satelliteコンテンツソース設定確認"
+      ansible.builtin.assert:
+        that:
+          - "'ansible-poc-satellite.ctest.internal' in satellite_config.stdout"
+          #- "'/pulp/content' in satellite_config.stdout"
+          - "'/rhsm' in satellite_config.stdout"
+        fail_msg: "【NG】Satellite設定が確認できません。"
+        success_msg: "【OK】Satellite設定を確認しました。"
+      when:
+        - ansible_os_family == "RedHat"
+
+    - name: "00-12-04. 【判定】BaseOS/AppStreamリポジトリが有効か検証"
+      ansible.builtin.assert:
+        that:
+          - "'baseos' in (enabled_repos.stdout | default('') | lower)"
+          - "'appstream' in (enabled_repos.stdout | default('') | lower)"
+        fail_msg: "必要なSatelliteリポジトリが有効化されていません"
+        success_msg: "Satelliteリポジトリが有効であることを確認"
+
+    - name: "00-12-05. Satelliteリポジトリのメタデータ取得確認"
+      ansible.builtin.command: dnf makecache --refresh
+      register: makecache_result
+      changed_when: false
+
+    - name: "00-12-06. 【判定】Satelliteからメタデータ取得可能か検証"
+      ansible.builtin.assert:
+        that:
+          - makecache_result.rc == 0
+        fail_msg: "Satelliteからメタデータ取得に失敗"
+        success_msg: "Satelliteからメタデータ取得成功"
+
+    - name: "00-12-07. 【判定】ルートディレクトリの空き容量チェック"
+      vars:
+        root_mount: "{{ ansible_mounts | selectattr('mount', 'equalto', '/') | first }}"
+        used_gb: "{{ ((root_mount.size_total - root_mount.size_available) / 1024 / 1024 / 1024) | round(2) }}"
+        total_gb: "{{ (root_mount.size_total / 1024 / 1024 / 1024) | round(2) }}"
+      ansible.builtin.assert:
+        that:
+        - root_mount.size_available / 1024 / 1024 / 1024 >= required_free_gb
+        fail_msg: "【エラー】{{ root_mount.mount }} の空き容量が不足しています (使用量: {{ used_gb }}GB / 全体: {{ total_gb }}GB / 最小必要空き: {{ required_free_gb }}GB)"
+        success_msg: "【正常】{{ root_mount.mount }} の空き容量は十分です"
+
+    - name: "00-12-08. 【判定】稼働すべきサービスが実際に「running」かチェック"
+      ansible.builtin.assert:
+        that:
+          - ansible_facts.services[item] is defined
+          - ansible_facts.services[item]['state'] == 'running'
+        fail_msg: "エラー: {{ item }} は稼働している必要がありますが、現在の状態は {{ ansible_facts.services[item]['state'] | default('存在しません') }} です。"
+      loop: "{{ services_must_be_running }}"
+
+    - name: "00-12-09. 【判定】停止すべきサービスが実際に「stopped」かチェック"
+      ansible.builtin.assert:
+        that:
+          - ansible_facts.services[item] is defined
+          - ansible_facts.services[item]['state'] == 'stopped'
+        fail_msg: "エラー: {{ item }} は停止している必要がありますが、現在の状態は {{ ansible_facts.services[item]['state'] | default('存在しません') }} です。"
+      loop: "{{ services_must_be_stopped }}"
