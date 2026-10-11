@@ -1,0 +1,31 @@
+---
+- name: Configure AAP from controller files
+  hosts: localhost
+  connection: local
+  gather_facts: false
+
+  vars:
+    aap_hostname: "{{ lookup('env', 'CONTROLLER_HOST') }}"
+    aap_username: "{{ lookup('env', 'CONTROLLER_USERNAME') }}"
+    aap_password: "{{ lookup('env', 'CONTROLLER_PASSWORD') }}"
+    aap_validate_certs: false
+
+  tasks:
+    - name: Load system variable files
+      ansible.builtin.include_vars:
+        dir: "controller_inventories/system_payment_a/group_vars"
+
+    - name: Create the inventory
+      ansible.controller.inventory:
+        name: inventory_payment_a
+        organization: "Patch Platform"
+        state: present
+
+    - name: Add hosts to the inventory
+      ansible.controller.host:
+        name: pay-app-01
+        inventory: inventory_payment_a
+        variables:
+          ansible_host: 16.76.181.50
+          ansible_user: ec2-user
+        state: present
