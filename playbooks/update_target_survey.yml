@@ -32,6 +32,12 @@
         fail_msg: >-
           No inventory YAML files were found under
           {{ inventory_root }}.
+          
+    - name: Show inventory files
+      debug:
+        msg: "{{ item.path }}"
+      loop: "{{ inventory_files.files }}"
+
 
     ####################################################################
     # Convert each path into env, OS and system values
