@@ -1,0 +1,31 @@
+---
+- name: Discover environments from inventory directories
+  hosts: localhost
+  connection: local
+  gather_facts: false
+
+  vars:
+    inventory_root: "{{ playbook_dir }}/../inventories"
+
+  tasks:
+    - name: Find environment directories
+      ansible.builtin.find:
+        paths: "{{ inventory_root }}"
+        file_type: directory
+        recurse: false
+      register: environment_directories
+
+    - name: Create environment choice list
+      ansible.builtin.set_fact:
+        environment_choices: >-
+          {{
+            environment_directories.files
+            | map(attribute='path')
+            | map('basename')
+            | sort
+            | list
+          }}
+
+    - name: Show choices discovered from GitHub
+      ansible.builtin.debug:
+        var: environment_choices
