@@ -92,6 +92,32 @@
       debug:
         var: discovered_targets
 
+- name: Debug inventory path parsing
+  debug:
+    msg:
+      inventory_root: "{{ inventory_root }}"
+      full_path: "{{ item.path }}"
+      relative_path: >-
+        {{
+          item.path
+          | regex_replace(
+              '^' + (inventory_root | regex_escape) + '/',
+              ''
+            )
+        }}
+      relative_parts: >-
+        {{
+          (
+            item.path
+            | regex_replace(
+                '^' + (inventory_root | regex_escape) + '/',
+                ''
+              )
+          ).split('/')
+        }}
+  loop: "{{ inventory_files.files }}"
+
+
     ####################################################################
     # Create unique Survey choices
     ####################################################################
