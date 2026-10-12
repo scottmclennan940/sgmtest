@@ -87,6 +87,6 @@
         validate_certs: false
       loop: "{{ inventory_data.hosts }}"
       loop_control:
-    loop_var: host
+        loop_var: host
       when:
         - inventory_file.ansible_facts.inventory_data.hosts is defined
