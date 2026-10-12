@@ -66,29 +66,27 @@
       loop: "{{ inventory_files.files }}"
       register: loaded_inventory_files
 
+    - name: Show loaded inventory files
+      debug:
+        var: loaded_inventory_files
+    
     ####################################################################
     # Create hosts
     ####################################################################
 
     - name: Create hosts
       ansible.controller.host:
-        name: "{{ host_item.name }}"
+        name: "{{ host.name }}"
         inventory: "{{ inventory_name }}"
-        enabled: true
+        variables:
+          ansible_host: "{{ host.ip }}"
         state: present
         controller_host: "{{ controller_host }}"
         controller_username: "{{ controller_username }}"
         controller_password: "{{ controller_password }}"
         validate_certs: false
-      vars:
-        inventory_name: >-
-          {{
-            inventory_file.item.path
-            | basename
-            | regex_replace('\.ya?ml$', '')
-          }}
-      loop: "{{ loaded_inventory_files.results }}"
+      loop: "{{ inventory_data.hosts }}"
       loop_control:
-        loop_var: inventory_file
+    loop_var: host
       when:
         - inventory_file.ansible_facts.inventory_data.hosts is defined
