@@ -49,36 +49,23 @@
         discovered_targets: []
 
     - name: Build discovered target records
-      ansible.builtin.set_fact:
-        discovered_targets: >-
-          {{
-            discovered_targets
-            +
-            [
-              {
-                'env': relative_parts[0],
-                'os': relative_parts[1],
-                'system':
-                  relative_parts[2]
-                  | regex_replace('\.ya?ml$', '')
-              }
-            ]
-          }}
+      set_fact:
+        discovered_targets: "{{ discovered_targets + [ target_record ] }}"
       vars:
-        relative_path: >-
-          {{
-            item.path
-            | regex_replace(
-                '^' + (inventory_root | regex_escape) + '/',
-                ''
-              )
-          }}
+        relative_path: "{{ item.path | replace(inventory_root ~ '/', '') }}"
         relative_parts: "{{ relative_path.split('/') }}"
+        target_record:
+          env: "{{ relative_parts[0] }}"
+          os: "{{ relative_parts[1] }}"
+          system: "{{ relative_parts[2] | regex_replace('\\.ya?ml$', '') }}"
       loop: "{{ inventory_files.files }}"
       when: relative_parts | length == 3
       loop_control:
         label: "{{ item.path }}"
-
+    - name: Show discovered targets
+      debug:
+        var: discovered_targets
+        
     ####################################################################
     # Create unique Survey choices
     ####################################################################
