@@ -248,7 +248,7 @@
         # Add /api/controller/# to the end of the URL
         controller_host: "https://sandbox-aap-i20260914-dev.apps.rm3.7wse.p1.openshiftapps.com"
         controller_username: "admin"
-        controller_password: "81eciBXyH912w9zUgfQi4hKqi91SAI"
+        controller_password: "5VYWhlSxEJKrN2UhJC5IJ6Tnh1SjVQ9t"
         validate_certs: false
     
 
