@@ -8,7 +8,7 @@
     inventory_root: "{{ playbook_dir }}/../inventories"
 
     # Name of the Job Template whose Survey will be updated
-    target_job_template: "updatepatchsurvey"
+    target_job_template: "patchsystem"
 
   tasks:
 
