@@ -92,4 +92,3 @@
         loop_var: inventory_file
       when:
         - inventory_file.ansible_facts.inventory_data.hosts is defined
-``
