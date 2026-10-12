@@ -238,7 +238,8 @@
 ####################################################################
 
     - name: Update Job Template Survey
-      awx.awx.job_template:
+#      awx.awx.job_template:
+      infra.aap_configuration.job_template:
         name: "updatepatchsurvey"
         survey_enabled: true 
         survey_spec: "{{ generated_survey_spec }}"
