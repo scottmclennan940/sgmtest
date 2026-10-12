@@ -1,0 +1,17 @@
+# playbooks/discover_targets.yml
+
+---
+- hosts: localhost
+  gather_facts: false
+
+  tasks:
+
+    - name: Show environments
+      ansible.builtin.find:
+        paths: "{{ playbook_dir }}/../inventories"
+        recurse: false
+        file_type: directory
+      register: envs
+
+    - debug:
+        msg: "{{ envs.files | map(attribute='path') | map('basename') | list }}"
