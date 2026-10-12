@@ -1,17 +1,90 @@
-# playbooks/discover_targets.yml
-
 ---
-- hosts: localhost
+- name: Discover Environments, OS Types and Systems
+  hosts: localhost
+  connection: local
   gather_facts: false
+
+  vars:
+    inventory_root: "{{ playbook_dir }}/../inventories"
 
   tasks:
 
-    - name: Show environments
+    ####################################################################
+    # Environments
+    ####################################################################
+
+    - name: Discover environments
       ansible.builtin.find:
-        paths: "{{ playbook_dir }}/../inventories"
+        paths: "{{ inventory_root }}"
         recurse: false
         file_type: directory
-      register: envs
+      register: env_dirs
 
-    - debug:
-        msg: "{{ envs.files | map(attribute='path') | map('basename') | list }}"
+    - name: Build environment list
+      ansible.builtin.set_fact:
+        environments: >-
+          {{
+            env_dirs.files
+            | map(attribute='path')
+            | map('basename')
+            | sort
+            | list
+          }}
+
+    - name: Show environments
+      ansible.builtin.debug:
+        var: environments
+
+    ####################################################################
+    # OS Types under dev
+    ####################################################################
+
+    - name: Discover OS types in dev
+      ansible.builtin.find:
+        paths: "{{ inventory_root }}/dev"
+        recurse: false
+        file_type: directory
+      register: os_dirs
+
+    - name: Build OS list
+      ansible.builtin.set_fact:
+        os_types: >-
+          {{
+            os_dirs.files
+            | map(attribute='path')
+            | map('basename')
+            | sort
+            | list
+          }}
+
+    - name: Show OS types
+      ansible.builtin.debug:
+        var: os_types
+
+    ####################################################################
+    # Systems under dev/rhel
+    ####################################################################
+
+    - name: Discover systems in dev/rhel
+      ansible.builtin.find:
+        paths: "{{ inventory_root }}/dev/rhel"
+        recurse: false
+        file_type: file
+        patterns: "*.yml"
+      register: system_files
+
+    - name: Build system list
+      ansible.builtin.set_fact:
+        systems: >-
+          {{
+            system_files.files
+            | map(attribute='path')
+            | map('basename')
+            | map('regex_replace', '\.yml$', '')
+            | sort
+            | list
+          }}
+
+    - name: Show systems
+      ansible.builtin.debug:
+        var: systems
