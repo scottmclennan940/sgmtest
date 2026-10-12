@@ -206,13 +206,15 @@
     # Update the target AAP Job Template
     ####################################################################
 
-    - name: Update Job Template Survey
-      awx.awx.job_template:
-        name: "{{ target_job_template }}"
-        survey_enabled: true
-        survey_spec: "{{ generated_survey_spec }}"
 
-        controller_host: "https://sandbox-aap-i20260914-dev.apps.rm3.7wse.p1.openshiftapps.com/"
+
+    - name: Test Controller connection
+      awx.awx.organization:
+        name: Default
+        state: exists
+        controller_host: "https://sandbox-aap-i20260914-dev.apps.rm3.7wse.p1.openshiftapps.com"
         controller_username: "admin"
         controller_password: "5VYWhlSxEJKrN2UhJC5IJ6Tnh1SjVQ9t"
         validate_certs: false
+
+        
