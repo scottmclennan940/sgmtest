@@ -240,7 +240,7 @@
 ####################################################################
 
     - name: Update Job Template Survey
-      awx.awx.job_template:
+      ansible.controller.job_template:
         name: "patchsystem"
         organization: "Default"
         survey_enabled: true 
