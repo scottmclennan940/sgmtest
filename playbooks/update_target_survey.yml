@@ -238,7 +238,7 @@
 ####################################################################
 
     - name: Update Job Template Survey
-      awx.awx.tower_job_template:
+      awx.awx.job_template:
         name: "updatepatchsurvey"
         organization: "Default"
         survey_enabled: true 
