@@ -254,41 +254,41 @@
 ####################################################################
 # Discover playbooks
 ####################################################################
-- name: Find playbooks
-  ansible.builtin.find:
-    paths: "{{ playbook_dir }}/../playbooks"
-    recurse: true
-    file_type: file
-    patterns:
-      - "*.yml"
-      - "*.yaml"
-  register: playbook_files
+    - name: Find playbooks
+      ansible.builtin.find:
+        paths: "{{ playbook_dir }}/../playbooks"
+        recurse: true
+        file_type: file
+        patterns:
+          - "*.yml"
+          - "*.yaml"
+      register: playbook_files
 
 ####################################################################
 # Build playbook choices
 ####################################################################
-- name: Build playbook choices
-  ansible.builtin.set_fact:
-    playbook_choices: >-
-      {{
-        playbook_files.files
-        | map(attribute='path')
-        | map('basename')
-        | map('regex_replace', '\.(yml|yaml)$', '')
-        | list
-        | sort
-      }}
+    - name: Build playbook choices
+      ansible.builtin.set_fact:
+        playbook_choices: >-
+          {{
+            playbook_files.files
+            | map(attribute='path')
+            | map('basename')
+            | map('regex_replace', '\.(yml|yaml)$', '')
+            | list
+            | sort
+          }}
 
-- name: Show playbook choices
-  ansible.builtin.debug:
-    var: playbook_choices
+    - name: Show playbook choices
+      ansible.builtin.debug:
+        var: playbook_choices
 
-- question_name: "Playbook"
-  question_description: "Select the playbook to run"
-  required: true
-  type: "multiplechoice"
-  variable: "selected_playbook"
-  choices: "{{ playbook_choices }}"
+    - question_name: "Playbook"
+      question_description: "Select the playbook to run"
+      required: true
+      type: "multiplechoice"
+      variable: "selected_playbook"
+      choices: "{{ playbook_choices }}"
 
 
 
