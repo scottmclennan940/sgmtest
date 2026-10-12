@@ -179,7 +179,7 @@
         survey_enabled: true
         survey_spec: "{{ generated_survey_spec }}"
 
-        controller_host: "{{ lookup('env', 'https://sandbox-aap-i20260914-dev.apps.rm3.7wse.p1.openshiftapps.com/') }}"
-        controller_username: "{{ lookup('env', 'admin') }}"
-        controller_password: "{{ lookup('env', '5VYWhlSxEJKrN2UhJC5IJ6Tnh1SjVQ9') }}"
+        controller_host: "{{ lookup('env', 'CONTROLLER_HOST') }}"
+        controller_username: "{{ lookup('env', 'CONTROLLER_USERNAME') }}"
+        controller_password: "{{ lookup('env', 'CONTROLLER_PASSWORD') }}"
         validate_certs: false
