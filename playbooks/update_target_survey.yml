@@ -5,13 +5,15 @@
   gather_facts: false
 
   vars:
-    inventory_root: "/runner/project/inventories"
+    inventory_root: "{{ playbook_dir }}/../inventories"
+
+    # Name of the Job Template whose Survey will be updated
     target_job_template: "Patch System"
 
   tasks:
 
     ####################################################################
-    # Find inventory files
+    # Find every inventory file
     ####################################################################
 
     - name: Find inventory files
@@ -30,10 +32,17 @@
           - inventory_files.matched | int > 0
         fail_msg: >-
           No inventory YAML files were found under
-          {{ inventory_root }}
+          {{ inventory_root }}.
 
     ####################################################################
-    # Build discovered targets
+    # Convert each path into env, OS and system values
+    #
+    # Example:
+    # inventories/dev/rhel/system_a.yml
+    #
+    # env    = dev
+    # OS     = rhel
+    # system = system_a
     ####################################################################
 
     - name: Initialize discovered target records
@@ -44,12 +53,15 @@
       ansible.builtin.set_fact:
         discovered_targets: >-
           {{
-            discovered_targets +
+            discovered_targets
+            +
             [
               {
-                'env': parts[0],
-                'os': parts[1],
-                'system': parts[2] | regex_replace('\.ya?ml$', '')
+                'env': relative_parts[0],
+                'os': relative_parts[1],
+                'system':
+                  relative_parts[2]
+                  | regex_replace('\.ya?ml$', '')
               }
             ]
           }}
@@ -57,17 +69,16 @@
         relative_path: >-
           {{
             item.path
-            | replace('/runner/project/inventories/', '')
+            | regex_replace(
+                '^' + (inventory_root | regex_escape) + '/',
+                ''
+              )
           }}
-        parts: "{{ relative_path.split('/') }}"
+        relative_parts: "{{ relative_path.split('/') }}"
       loop: "{{ inventory_files.files }}"
-      when: parts | length == 3
+      when: relative_parts | length == 3
       loop_control:
         label: "{{ item.path }}"
-
-    - name: Show discovered targets
-      ansible.builtin.debug:
-        var: discovered_targets
 
     ####################################################################
     # Create unique Survey choices
@@ -106,8 +117,70 @@
             | list
           }}
 
-    - name: Show generated choices
+    - name: Show discovered choices
       ansible.builtin.debug:
         msg:
           environments: "{{ environment_choices }}"
-          operating_systems: "{{ os_choices }
+          operating_systems: "{{ os_choices }}"
+          systems: "{{ system_choices }}"
+
+    ####################################################################
+    # Generate the Survey specification dynamically
+    ####################################################################
+
+    - name: Build dynamic Survey specification
+      ansible.builtin.set_fact:
+        generated_survey_spec:
+          name: Patch Target Selection
+          description: >-
+            Target choices generated from the GitHub inventories directory.
+          spec:
+            - question_name: Environment
+              question_description: Select the target environment
+              variable: target_env
+              type: multiplechoice
+              required: true
+              choices: "{{ environment_choices }}"
+
+            - question_name: Operating System
+              question_description: Select the target operating system
+              variable: target_os
+              type: multiplechoice
+              required: true
+              choices: "{{ os_choices }}"
+
+            - question_name: System
+              question_description: Select the target system
+              variable: target_system
+              type: multiplechoice
+              required: true
+              choices: "{{ system_choices }}"
+
+    - name: Show generated Survey specification
+      ansible.builtin.debug:
+        var: generated_survey_spec
+
+    ####################################################################
+    # Optional: write a temporary YAML file for verification
+    ####################################################################
+
+    - name: Write generated Survey specification
+      ansible.builtin.copy:
+        content: "{{ generated_survey_spec | to_nice_yaml(indent=2) }}"
+        dest: /tmp/generated_survey_spec.yml
+        mode: "0600"
+
+    ####################################################################
+    # Update the target AAP Job Template
+    ####################################################################
+
+    - name: Update Job Template Survey
+      awx.awx.job_template:
+        name: "{{ target_job_template }}"
+        survey_enabled: true
+        survey_spec: "{{ generated_survey_spec }}"
+
+        controller_host: "{{ lookup('env', 'CONTROLLER_HOST') }}"
+        controller_username: "{{ lookup('env', 'CONTROLLER_USERNAME') }}"
+        controller_password: "{{ lookup('env', 'CONTROLLER_PASSWORD') }}"
+        validate_certs: false
