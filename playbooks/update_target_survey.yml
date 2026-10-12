@@ -149,6 +149,18 @@
             | list
           }}
 
+    - name: Build playbook choices
+      ansible.builtin.set_fact:
+        system_choices: >-
+          {{
+            discovered_targets
+            | map(attribute='playbook')
+            | unique
+            | sort
+            | list
+          }}
+
+
     - name: Show discovered choices
       ansible.builtin.debug:
         msg:
