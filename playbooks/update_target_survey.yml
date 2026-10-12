@@ -243,8 +243,8 @@
         return_content: true
       register: jt_lookup
 
-- debug:
-    var: jt_lookup.content
+    - debug:
+      var: jt_lookup.content
     
 ####################################################################
 # Update the target AAP Job Template
