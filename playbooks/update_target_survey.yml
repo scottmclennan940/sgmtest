@@ -173,8 +173,8 @@
     # Update the target AAP Job Template
     ####################################################################
 
-     - name: Update Job Template Survey
-       awx.awx.job_template:
+    - name: Update Job Template Survey
+      awx.awx.job_template:
         name: "{{ target_job_template }}"
         survey_enabled: true
         survey_spec: "{{ generated_survey_spec }}"
