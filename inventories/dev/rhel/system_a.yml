@@ -1,5 +1,8 @@
-inventory_name: system_a
+inventory_name: system_c
 
 hosts:
-  - host1
-  - host2
+  - name: server05
+    ip: 10.0.0.1
+
+  - name: server06
+    ip: 10.0.0.2
