@@ -209,6 +209,15 @@
     - debug:
         var: awx_version.stdout
 
+    - name: Test Controller connection with token
+      awx.awx.organization:
+        name: Default
+        state: exists
+        controller_host: "https://sandbox-aap-i20260914-dev.apps.rm3.7wse.p1.openshiftapps.com"
+        controller_oauthtoken: "{{ controller_token }}"
+        validate_certs: false
+
+
 
 ####################################################################
 # Update the target AAP Job Template
