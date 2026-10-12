@@ -1,1 +1,16 @@
+inventory_name: system_a
 
+hosts:
+  - name: server03
+    ip: 10.0.0.1
+
+  - name: server04
+    ip: 10.0.0.2
+
+users:
+  - user3
+  - user4
+
+roles:
+  - execute
+  - use
