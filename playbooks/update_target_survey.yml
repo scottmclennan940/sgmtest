@@ -155,6 +155,7 @@
           environments: "{{ environment_choices }}"
           operating_systems: "{{ os_choices }}"
           systems: "{{ system_choices }}"
+          playbook: "{{ playbook_choices }}"
 
     ####################################################################
     # Generate the Survey specification dynamically
