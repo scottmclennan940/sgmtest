@@ -111,6 +111,46 @@
             }}
       loop: "{{ inventory_files.files }}"
 
+####################################################################
+# Discover runnable playbooks
+####################################################################
+
+- name: Find runnable playbooks
+  ansible.builtin.find:
+    paths: "{{ playbook_dir }}"
+    recurse: false
+    file_type: file
+    patterns:
+      - "*.yml"
+      - "*.yaml"
+    excludes:
+      - "update_target_survey.yml"
+  register: playbook_files
+
+- name: Confirm runnable playbooks were found
+  ansible.builtin.assert:
+    that:
+      - playbook_files.matched | int > 0
+    fail_msg: >-
+      No runnable playbooks were found under {{ playbook_dir }}.
+
+- name: Build playbook choices
+  ansible.builtin.set_fact:
+    playbook_choices: >-
+      {{
+        playbook_files.files
+        | map(attribute='path')
+        | map('basename')
+        | reject('equalto', 'update_target_survey.yml')
+        | unique
+        | sort
+        | list
+      }}
+
+- name: Show playbook choices
+  ansible.builtin.debug:
+    var: playbook_choices
+
 
     ####################################################################
     # Create unique Survey choices
@@ -276,7 +316,7 @@
 ####################################################################
     - name: Find playbooks
       ansible.builtin.find:
-        paths: "{{ playbook_dir }}/../playbooks"
+        paths: "{{ playbook_dir }}"
         recurse: true
         file_type: file
         patterns:
@@ -284,20 +324,7 @@
           - "*.yaml"
       register: playbook_files
 
-####################################################################
-# Build playbook choices
-####################################################################
-    - name: Build playbook choices
-      ansible.builtin.set_fact:
-        playbook_choices: >-
-          {{
-            playbook_files.files
-            | map(attribute='path')
-            | map('basename')
-            | map('regex_replace', '\.(yml|yaml)$', '')
-            | list
-            | sort
-          }}
+
 
     - name: Show playbook choices
       ansible.builtin.debug:
