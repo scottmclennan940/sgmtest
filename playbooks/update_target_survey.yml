@@ -214,7 +214,25 @@
       debug:
         var: target_job_template
 
+    - name: Test direct Job Template endpoint
+      ansible.builtin.uri:
+        url: "https://sandbox-aap-i20260914-dev.apps.rm3.7wse.p1.openshiftapps.com/api/controller/v2/job_templates/"
+        method: GET
+        validate_certs: false
+        headers:
+          Authorization: "Bearer 81eciBXyH912w9zUgfQi4hKqi91SAI"
+        return_content: true
+      register: jt_test
 
+    - name: Show Job Template endpoint status
+      debug:
+        var: jt_test.status
+
+    - name: Show Job Template endpoint content
+      debug:
+        var: jt_test.content
+
+    
 ####################################################################
 # Update the target AAP Job Template
 ####################################################################
