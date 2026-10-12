@@ -6,3 +6,11 @@ hosts:
 
   - name: server06
     ip: 10.0.0.2
+
+    users:
+  - user5
+  - user6
+
+roles:
+  - execute
+  - use
