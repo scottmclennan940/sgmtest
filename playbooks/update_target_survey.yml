@@ -238,11 +238,11 @@
 ####################################################################
 
     - name: Update Job Template Survey
-#      awx.awx.job_template:
-      infra.aap_configuration.job_template:
+      awx.awx.job_template:
         name: "updatepatchsurvey"
         survey_enabled: true 
         survey_spec: "{{ generated_survey_spec }}"
+        # Add /api/controller/# to the end of the URL
         controller_host: "https://sandbox-aap-i20260914-dev.apps.rm3.7wse.p1.openshiftapps.com"
         controller_oauthtoken: "81eciBXyH912w9zUgfQi4hKqi91SAI"
         validate_certs: false
