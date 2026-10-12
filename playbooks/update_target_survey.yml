@@ -1,5 +1,39 @@
+---
+- name: Generate AAP Survey choices from GitHub directories
+  hosts: localhost
+  connection: local
+  gather_facts: false
+
+  vars:
+    inventory_root: "/runner/project/inventories"
+    target_job_template: "Patch System"
+
+  tasks:
+
     ####################################################################
-    # Build target records
+    # Find inventory files
+    ####################################################################
+
+    - name: Find inventory files
+      ansible.builtin.find:
+        paths: "{{ inventory_root }}"
+        recurse: true
+        file_type: file
+        patterns:
+          - "*.yml"
+          - "*.yaml"
+      register: inventory_files
+
+    - name: Confirm inventory files were found
+      ansible.builtin.assert:
+        that:
+          - inventory_files.matched | int > 0
+        fail_msg: >-
+          No inventory YAML files were found under
+          {{ inventory_root }}
+
+    ####################################################################
+    # Build discovered targets
     ####################################################################
 
     - name: Initialize discovered target records
@@ -32,7 +66,7 @@
         label: "{{ item.path }}"
 
     - name: Show discovered targets
-      debug:
+      ansible.builtin.debug:
         var: discovered_targets
 
     ####################################################################
@@ -72,9 +106,8 @@
             | list
           }}
 
-    - name: Show discovered choices
-      debug:
+    - name: Show generated choices
+      ansible.builtin.debug:
         msg:
           environments: "{{ environment_choices }}"
-          operating_systems: "{{ os_choices }}"
-          systems: "{{ system_choices }}"
+          operating_systems: "{{ os_choices }
