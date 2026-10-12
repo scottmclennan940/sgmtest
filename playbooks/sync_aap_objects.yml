@@ -5,7 +5,7 @@
   gather_facts: false
 
   vars:
-    inventory_root: "{{ playbook_dir }}/../inventories"
+    inventory_root: "{{ playbook_dir }}/../inventories"  
     user_root: "{{ playbook_dir }}/../users"
     role_root: "{{ playbook_dir }}/../roles"
 
