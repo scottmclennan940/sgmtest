@@ -189,16 +189,6 @@
             | list
           }}
 
-    - name: Build playbook choices
-      ansible.builtin.set_fact:
-        playbook_choices: >-
-          {{
-            discovered_targets
-            | map(attribute='playbook')
-            | unique
-            | sort
-            | list
-          }}
 
 
     - name: Show discovered choices
