@@ -238,8 +238,9 @@
 ####################################################################
 
     - name: Update Job Template Survey
-      awx.awx.job_template:
+      awx.awx.tower_job_template:
         name: "updatepatchsurvey"
+        organization: "Default"
         survey_enabled: true 
         survey_spec: "{{ generated_survey_spec }}"
         # Add /api/controller/# to the end of the URL
@@ -247,7 +248,7 @@
         controller_oauthtoken: "81eciBXyH912w9zUgfQi4hKqi91SAI"
         validate_certs: false
     
-    
+
 
 
 
