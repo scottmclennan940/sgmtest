@@ -88,3 +88,32 @@
     - name: Show systems
       ansible.builtin.debug:
         var: systems
+
+    ####################################################################
+    # All Targets
+    ####################################################################
+
+    - name: Find all inventory files
+      ansible.builtin.find:
+        paths: "{{ inventory_root }}"
+        recurse: true
+        file_type: file
+        patterns: "*.yml"
+      register: inventory_files
+
+    - name: Build target list
+      ansible.builtin.set_fact:
+        available_targets: >-
+          {{
+            inventory_files.files
+            | map(attribute='path')
+            | map('regex_replace', '^' + inventory_root + '/', '')
+            | map('regex_replace', '\.yml$', '')
+            | sort
+            | list
+          }}
+
+    - name: Show available targets
+      ansible.builtin.debug:
+        var: available_targets
+        
