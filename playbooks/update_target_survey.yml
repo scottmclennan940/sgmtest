@@ -252,7 +252,7 @@
 
     - name: Update Job Template Survey
       awx.awx.job_template:
-        name: "updatepatchsurvey"
+        name: "patchsystem"
         organization: "Default"
         survey_enabled: true 
         survey_spec: "{{ generated_survey_spec }}"
