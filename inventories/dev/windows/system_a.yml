@@ -1,5 +1,8 @@
-inventory_name: system_a
+inventory_name: system_e
 
 hosts:
-  - host1
-  - host2
+  - name: server9
+    ip: 10.0.0.1
+
+  - name: server10
+    ip: 10.0.0.2
