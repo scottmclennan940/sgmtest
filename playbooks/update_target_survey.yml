@@ -216,7 +216,15 @@
 
     - name: Show API result
       debug:
-        var: api_test.status
+        var: api_test
+
+
+
+
+
+    
+
+
 
     - name: Test Controller connection
       awx.awx.organization:
