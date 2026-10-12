@@ -1,4 +1,4 @@
-inventory_name: system_e
+inventory_name: system_a
 
 hosts:
   - name: server9
