@@ -1,11 +1,14 @@
 ---
-- name: Discover environments from inventory directories
+- name: Update environment survey choices from Git directories
   hosts: localhost
   connection: local
   gather_facts: false
 
   vars:
     inventory_root: "{{ playbook_dir }}/../inventories"
+
+    # Change this to the Job Template containing the user-facing survey
+    target_job_template: "Patch System"
 
   tasks:
     - name: Find environment directories
@@ -15,17 +18,43 @@
         recurse: false
       register: environment_directories
 
-    - name: Create environment choice list
+    - name: Build environment choice list
       ansible.builtin.set_fact:
         environment_choices: >-
           {{
             environment_directories.files
             | map(attribute='path')
             | map('basename')
+            | reject('match', '^\\.')
             | sort
             | list
           }}
 
-    - name: Show choices discovered from GitHub
+    - name: Confirm discovered environment choices
       ansible.builtin.debug:
         var: environment_choices
+
+    - name: Stop when no environments were discovered
+      ansible.builtin.assert:
+        that:
+          - environment_choices | length > 0
+        fail_msg: "No environment directories found under {{ inventory_root }}"
+
+    - name: Update target Job Template survey
+      awx.awx.job_template:
+        name: "{{ target_job_template }}"
+        survey_enabled: true
+        survey_spec:
+          name: Target selection
+          description: Generated from inventories directory
+          spec:
+            - question_name: Target environment
+              question_description: Select the target environment
+              variable: target_env
+              type: multiplechoice
+              required: true
+              choices: "{{ environment_choices }}"
+        controller_host: "{{ lookup('env', 'CONTROLLER_HOST') }}"
+        controller_username: "{{ lookup('env', 'CONTROLLER_USERNAME') }}"
+        controller_password: "{{ lookup('env', 'CONTROLLER_PASSWORD') }}"
+        validate_certs: false
