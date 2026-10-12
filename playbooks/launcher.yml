@@ -1,0 +1,30 @@
+---
+- name: Launch selected operation
+  hosts: all
+  gather_facts: false
+
+  tasks:
+
+    - name: Show selections
+      debug:
+        msg:
+          env: "{{ target_env }}"
+          os: "{{ target_os }}"
+          system: "{{ target_system }}"
+          playbook: "{{ selected_playbook }}"
+
+    - name: Run Monthly Patch
+      include_tasks: patch_monthly.yml
+      when: selected_playbook == "patch_monthly.yml"
+
+    - name: Run Emergency Patch
+      include_tasks: patch_emergency.yml
+      when: selected_playbook == "patch_emergency.yml"
+
+    - name: Run Evidence Collection
+      include_tasks: evidence.yml
+      when: selected_playbook == "evidence.yml"
+
+    - name: Run Precheck
+      include_tasks: precheck.yml
+      when: selected_playbook == "precheck.yml"
