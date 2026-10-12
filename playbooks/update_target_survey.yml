@@ -5,7 +5,7 @@
   gather_facts: false
 
   vars:
-    inventory_root: "{{ playbook_dir }}/../inventories"
+    inventory_root: "/runner/project/inventories"
 
     # Name of the Job Template whose Survey will be updated
     target_job_template: "Patch System"
@@ -56,16 +56,8 @@
 
     - name: Build discovered target records
       set_fact:
-        discovered_targets: "{{ discovered_targets + [ target_record ] }}"
-      vars:
-        relative_path: "{{ item.path | replace(inventory_root ~ '/', '') }}"
-        relative_parts: "{{ relative_path.split('/') }}"
-        target_record:
-          env: "{{ relative_parts[0] }}"
-          os: "{{ relative_parts[1] }}"
-          system: "{{ relative_parts[2] | regex_replace('\\.ya?ml$', '') }}"
+        discovered_targets: "{{ discovered_targets + [ item.path ] }}"
       loop: "{{ inventory_files.files }}"
-      when: relative_parts | length == 3
       loop_control:
         label: "{{ item.path }}"
     - name: Show discovered targets
