@@ -1,4 +1,4 @@
-inventory_name: system_a
+inventory_name: system_b
 
 hosts:
   - host3
