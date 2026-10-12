@@ -224,7 +224,7 @@
         name: "{{ target_job_template }}"
         survey_enabled: true 
         survey_spec: "{{ generated_survey_spec }}"
-        controller_host: "https://sandbox-aap-i20260914-dev.apps.rm3.7wse.p1.openshiftapps.com"
+        controller_host: "https://sandbox-aap-i20260914-dev.apps.rm3.7wse.p1.openshiftapps.com/api/controller"
         controller_oauthtoken: "81eciBXyH912w9zUgfQi4hKqi91SAI"
         validate_certs: false
     
