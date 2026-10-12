@@ -11,6 +11,6 @@ hosts:
   - user12
   - user13
 
-roles:
+  roles:
   - execute
   - use  
