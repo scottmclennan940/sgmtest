@@ -15,6 +15,14 @@
     ####################################################################
     # Find every inventory file
     ####################################################################
+    - name: Show playbook_dir
+      debug:
+        msg: "{{ playbook_dir }}"
+
+    - name: Show inventory_root
+      debug:
+        msg: "{{ inventory_root }}"
+
 
     - name: Find inventory files
       ansible.builtin.find:
