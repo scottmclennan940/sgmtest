@@ -202,6 +202,12 @@
         dest: /tmp/generated_survey_spec.yml
         mode: "0600"
 
+    - name: Show AWX collection version
+      command: ansible-galaxy collection list awx.awx
+      register: awx_version
+
+    - debug:
+        var: awx_version.stdout
 
 
 ####################################################################
