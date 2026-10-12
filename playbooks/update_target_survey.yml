@@ -210,7 +210,9 @@
         var: awx_version.stdout
 
 
-
+    - name: Show target job template
+      debug:
+        var: target_job_template
 
 
 ####################################################################
