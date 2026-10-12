@@ -88,6 +88,10 @@
       loop_control:
         label: "{{ item.path }}"
 
+    - name: Show discovered targets
+      debug:
+        var: discovered_targets
+
     ####################################################################
     # Create unique Survey choices
     ####################################################################
