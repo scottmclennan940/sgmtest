@@ -1,5 +1,8 @@
 inventory_name: system_b
 
 hosts:
-  - host3
-  - host4
+  - name: server07
+    ip: 10.0.0.1
+
+  - name: server08
+    ip: 10.0.0.2
