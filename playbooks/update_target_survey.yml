@@ -74,15 +74,9 @@
             ]
           }}
       vars:
-        relative_path: >-
-          {{
-            item.path
-            | regex_replace(
-                '^' + (inventory_root | regex_escape) + '/',
-                ''
-              )
-          }}
+        relative_path: "{{ item.path.split('/inventories/')[1] }}"
         relative_parts: "{{ relative_path.split('/') }}"
+
       loop: "{{ inventory_files.files }}"
       when: relative_parts | length == 3
       loop_control:
