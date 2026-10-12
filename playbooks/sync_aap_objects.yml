@@ -1,0 +1,95 @@
+---
+- name: Synchronize Git definitions into AAP
+  hosts: localhost
+  connection: local
+  gather_facts: false
+
+  vars:
+    inventory_root: "{{ playbook_dir }}/../inventories"
+    user_root: "{{ playbook_dir }}/../users"
+    role_root: "{{ playbook_dir }}/../roles"
+
+    controller_host: "{{ lookup('env', 'CONTROLLER_HOST') }}"
+    controller_username: "{{ lookup('env', 'CONTROLLER_USERNAME') }}"
+    controller_password: "{{ lookup('env', 'CONTROLLER_PASSWORD') }}"
+
+  tasks:
+
+    ####################################################################
+    # Discover inventory definitions
+    ####################################################################
+
+    - name: Find inventory files
+      ansible.builtin.find:
+        paths: "{{ inventory_root }}"
+        recurse: true
+        file_type: file
+        patterns:
+          - "*.yml"
+          - "*.yaml"
+      register: inventory_files
+
+    - name: Show inventory files
+      debug:
+        var: inventory_files.files
+
+    ####################################################################
+    # Create inventories
+    ####################################################################
+
+    - name: Create inventories
+      ansible.controller.inventory:
+        name: >-
+          {{
+            item.path
+            | basename
+            | regex_replace('\.ya?ml$', '')
+          }}
+        organization: Default
+        state: present
+        controller_host: "{{ controller_host }}"
+        controller_username: "{{ controller_username }}"
+        controller_password: "{{ controller_password }}"
+        validate_certs: false
+      loop: "{{ inventory_files.files }}"
+      loop_control:
+        label: "{{ item.path }}"
+
+    ####################################################################
+    # Load inventory definitions
+    ####################################################################
+
+    - name: Load inventory file
+      include_vars:
+        file: "{{ item.path }}"
+        name: inventory_data
+      loop: "{{ inventory_files.files }}"
+      register: loaded_inventory_files
+
+    ####################################################################
+    # Create hosts
+    ####################################################################
+
+    - name: Create hosts
+      ansible.controller.host:
+        name: "{{ host_item.name }}"
+        inventory: "{{ inventory_name }}"
+        enabled: true
+        state: present
+        controller_host: "{{ controller_host }}"
+        controller_username: "{{ controller_username }}"
+        controller_password: "{{ controller_password }}"
+        validate_certs: false
+      vars:
+        inventory_name: >-
+          {{
+            inventory_file.item.path
+            | basename
+            | regex_replace('\.ya?ml$', '')
+          }}
+      loop: "{{ loaded_inventory_files.results }}"
+      loop_control:
+        loop_var: inventory_file
+      when:
+        - inventory_file.ansible_facts.inventory_data.hosts is defined
+``
