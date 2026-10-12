@@ -151,7 +151,7 @@
 
     - name: Build playbook choices
       ansible.builtin.set_fact:
-        system_choices: >-
+        playbook_choices: >-
           {{
             discovered_targets
             | map(attribute='playbook')
